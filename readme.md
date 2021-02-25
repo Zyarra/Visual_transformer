@@ -33,9 +33,9 @@ git clone https://github.com/Zyarra/Visual_transformer
 # install project
 pip install -r requirements.txt
  ```   
- # Edit hyperparameters in hyperparameters.py, I will add argparse soon..
- # Or just add your dataset in the same file in 'DATA_DIR' and run main.py
- # The script will run until it converges and stops when the validation loss stops increasing. This should be within 10 epoch for most datasets.
+ ### Edit hyperparameters in hyperparameters.py, I will add argparse soon..
+ ### Or just add your dataset in the same file in 'DATA_DIR' and run main.py
+ ### The script will run until it converges and stops when the validation loss stops increasing. This should be within 10 epoch for most datasets.
 
 
  
