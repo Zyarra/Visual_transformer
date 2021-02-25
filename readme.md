@@ -18,44 +18,25 @@ ARXIV
  
 ## Description   
 This is an implementation of a visual transformer.
-I used resnet(50-101-152) as backbone to extract feature maps and tokens from the images.
+I used resneSt(50-101-152) as backbone to extract feature maps and tokens from the images.
 The model converges very fast and reaches reasonable accuracy(95%++) on most publicly available small-medium datasets.
+
 ![arch](images/archhhh2-770x388.png)
 
 ## How to run   
+
 First, install dependencies   
 ```bash
 # clone project   
-git clone https://github.com/Zyarra/TRESNet
+git clone https://github.com/Zyarra/Visual_transformer
 
 # install project
-No installation, just the requirements.txt
 pip install -r requirements.txt
  ```   
- Next, navigate to any file and run it.   
- ```bash
-cd project
+ # Edit hyperparameters in hyperparameters.py, I will add argparse soon..
+ # Or just add your dataset in the same file in 'DATA_DIR' and run main.py
+ # The script will run until it converges and stops when the validation loss stops increasing. This should be within 10 epoch for most datasets.
 
-# run module (example: mnist as your main contribution)   
-python tresnet.py *args **kwargs
-```
 
-## Imports
-```python
-
-# model
-model = VTR()
-
-# data
-train, val, test = mnist()
-
-# train
-trainer = Trainer()
-trainer.fit(model, train, val)
-
-# test using the best model!
-trainer.test(test_dataloaders=test)
-The code is pretty self explanatory.
-
-```
+ 
 
