@@ -57,17 +57,3 @@ class LayerNormalize(nn.Module):
     def forward(self, x, **kwargs):
         return self.fn(self.norm(x), **kwargs)
 
-
-class LambdaLayer(nn.Module):
-    """
-    Lambda layer
-    """
-    def __init__(self, lambd):
-        """
-        lambd: lambda function to iterate the data over
-        """
-        super(LambdaLayer, self).__init__()
-        self.lambd = lambd
-
-    def forward(self, x):
-        return self.lambd(x)

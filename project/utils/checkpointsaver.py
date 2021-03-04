@@ -69,10 +69,10 @@ class CheckpointSaver:
             'epoch': epoch,
             'arch': type(self.model).__name__.lower(),
             'state_dict': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict()
+            'optimizer': self.optimizer.state_dict(),
         }
         if self.amp_scaler is not None:
-            save_state[self.amp_scaler.state_dict_key] = self.amp_scaler.state_dict()
+            save_state['amp_scaler'] = self.amp_scaler.state_dict()
         if metric is not None:
             save_state['metric'] = metric
         torch.save(save_state, save_path)

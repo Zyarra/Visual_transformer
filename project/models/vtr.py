@@ -1,8 +1,8 @@
 from torch import nn
-from project.models.blocks import Transformer
+import torch
+from models.blocks import Transformer
 from functools import partial
-from project.utils.modulefreezer import freeze
-from project.hyperparameters import *
+from utils.modulefreezer import freeze
 
 
 class VTR(nn.Module):
@@ -18,10 +18,10 @@ class VTR(nn.Module):
         and the number of tokens as 16.
         We adopt 16 visual tokens with a channel size of 1024. Only train the transformer and the FC layers.
     """
-    def __init__(self, img_size=IMAGE_SIZE, in_chans=CHANNELS, num_classes=NUM_CLASSES,
-                 dim=VTR_DIM, depth=TRANSFORMER_DEPTH,
-                 num_heads=TRANSFORMER_HEADS, mlp_hidden_dim=VTR_MLP_DIM,
-                 dropout=VTR_DROPOUT, attn_dropout=ATTN_DROPOUT, emb_dropout=EMB_DROPOUT, backbone=BACKBONE):
+    def __init__(self, img_size, in_chans, num_classes,
+                 dim, depth,
+                 num_heads, mlp_hidden_dim,
+                 dropout, attn_dropout, emb_dropout, backbone, backbone_repo):
         """img_size: input image size
             in_chans: number of input channels
             num_classes: number of classes for classification head
@@ -39,6 +39,7 @@ class VTR(nn.Module):
         self.dim = dim
         self.img_size = (img_size, img_size)
         self.in_chans = in_chans
+        backbone = torch.hub.load(backbone_repo, backbone, pretrained=True, verbose=False)
         backbone = nn.Sequential(*list(backbone.children())[:-3])
         freeze(module=backbone, train_bn=False)
         self.backbone = backbone

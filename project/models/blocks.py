@@ -1,5 +1,5 @@
 import torch.nn as nn
-from project.models.layers import LayerNormalize, Residual, Attention
+from models.layers import LayerNormalize, Residual, Attention
 
 
 class MLP_Block(nn.Module):
@@ -42,5 +42,6 @@ class Transformer(nn.Module):
     def forward(self, x):
         for attention, mlp in self.layers:
             x = attention(x)
+
             x = mlp(x)
         return x
