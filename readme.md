@@ -34,10 +34,9 @@ git clone https://github.com/Zyarra/Visual_transformer
 pip install -r requirements.txt
 python project\main.py
  ```   
- ### Edit hyperparameters in hyperparameters.py, I will add argparse soon..
- ### Or just add your dataset in the same file in 'DATA_DIR' and run main.py
- ### The script will run until it converges and stops when the validation loss stops increasing. This should be within 10 epoch for most datasets.
-
+python tresnet.py
+All default arguments are added for imagenet, but stuff like data_dir has to be adjusted to your own structure.
+see --help for the rest of arguments
 
  
 
