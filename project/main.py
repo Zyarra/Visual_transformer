@@ -1,20 +1,29 @@
 import time
 import torch
 from data import data_preparation
-from models.vtr import VTR
+from models.vtr import VTR, TiT
 from train import test, train
 from utils.earlystop import EarlyStopping
 from utils.checkpointsaver import CheckpointSaver, resume_checkpoint
 import warnings
 import argparse
 import csv
-
-
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 torch.manual_seed(0)
-parser = argparse.ArgumentParser(description='visual transformer with resnet backbone')
 
+# Run arguments
+parser = argparse.ArgumentParser(description='visual transformer with resnet backbone')
+parser.add_argument('--model_type', help='which model to use, currently VTR_Resnet and TNT are supported',
+                    default='vtr_resnet')
+parser.add_argument('--patch_dim', help='Patch embedding dimensions for TNT',
+                    default=384)
+parser.add_argument('--pixel_dim', help='Pixel embedding dimensions for TNT',
+                    default=32)
+parser.add_argument('--patch_size', help='Patch size for TNT',
+                    default=16)
+parser.add_argument('--pixel_size', help='Pixel size for TNT',
+                    default=8)
 parser.add_argument('--data_dir', help='path to dataset', default='D:/datasets/imagenet')
 parser.add_argument('--img_mean', type=float, nargs='+', default=[0.485, 0.456, 0.406],
                     help='dataset mean pixel values, default [0.485, 0.456, 0.406] for ImageNet')
@@ -78,12 +87,20 @@ try:
         amp_scaler = torch.cuda.amp.GradScaler(enabled=use_fp16)
 except AttributeError:
     pass
-model = VTR(img_size=args.image_size, in_chans=args.image_channels, num_classes=args.num_classes, dim=args.dim,
-            depth=args.transformer_depth, num_heads=args.transformer_heads, mlp_hidden_dim=args.mlp_hidden,
-            dropout=args.vtr_dropout, attn_dropout=args.attn_dropout, emb_dropout=args.emb_dropout,
-            backbone=args.backbone,
-            backbone_repo=args.backbone_repo).to(DEVICE)
 
+# Model selection
+if args.model_type == 'vtr_resnet':
+    model = VTR(img_size=args.image_size, in_chans=args.image_channels, num_classes=args.num_classes, dim=args.dim,
+                depth=args.transformer_depth, num_heads=args.transformer_heads, mlp_hidden_dim=args.mlp_hidden,
+                dropout=args.vtr_dropout, attn_dropout=args.attn_dropout, emb_dropout=args.emb_dropout,
+                backbone=args.backbone,
+                backbone_repo=args.backbone_repo).to(DEVICE)
+elif args.model_type == 'TNT':
+    model = TiT(image_size=args.image_size, patch_dim=args.patch_dim, pixel_dim=args.pixel_dim, patch_size=args.patch_size, pixel_size=args.pixel_size,
+                depth=args.transformer_depth, num_classes=args.num_classes, attn_dropout=args.attn_dropout,
+                dropout=args.vtr_dropout).to(DEVICE)
+
+# Optimizer / decay
 optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
                               lr=args.lr, eps=args.lr_eps, weight_decay=args.lr_weight_decay)
 if args.lr_decay_type == 'step':
@@ -94,28 +111,29 @@ elif args.lr_decay_type == 'cosine':
 else:
     print('Currently only step and cosine LR decay are supported')
 
+# Utils
 early_stopping = EarlyStopping(patience=args.early_stop_patience, delta=args.early_stop_min_delta)
 checkpointer = CheckpointSaver(model=model, optimizer=optimizer, checkpoint_dir=args.chkpoint_path,
                                decreasing=True, max_history=args.chkpoint_maxhist, amp_scaler=amp_scaler)
 
+# Data
 train_loader, test_loader = data_preparation(
     data_dir=args.data_dir, batch_size_train=args.batch_size_train, batch_size_test=args.batch_size_test,
     image_size=args.image_size, num_workers=args.num_workers, prefetch_factor=args.prefetch_factor,
     img_mean=args.img_mean, img_std=args.img_std, ds_split=args.ds_split_ratio)
-N_EPOCHS = args.n_epochs
 
 if args.resume_checkpoint:
     resume_checkpoint(model, checkpoint_path=args.last_checkpoint_path, optimizer=optimizer, loss_scaler=amp_scaler)
 
 
+# Training loop
 def main():
     train_loss_history, test_loss_history, time_per_epoch = [], [], []
-
-    for epoch in range(1, N_EPOCHS + 1):
-        total_time_left = round(sum(time_per_epoch) / epoch * (N_EPOCHS - epoch) / 60)
+    for epoch in range(1, args.n_epochs + 1):
+        total_time_left = round(sum(time_per_epoch) / epoch * (args.n_epochs - epoch) / 60)
         current_learning_rate = optimizer.param_groups[0]['lr']
-        print(f'EPOCH: [{epoch}/{N_EPOCHS}], Learning Rate: [{current_learning_rate}],'
-              f'Estimated time left for {N_EPOCHS} Epochs: {total_time_left} m')
+        print(f'EPOCH: [{epoch}/{args.n_epochs}], Learning Rate: [{current_learning_rate}],'
+              f'Estimated time left for {args.n_epochs} Epochs: {total_time_left} m')
         start_time = time.time()
         train(model, optimizer, train_loader, train_loss_history, use_fp16=use_fp16,
               amp_scaler=amp_scaler, device=DEVICE)

@@ -1,5 +1,8 @@
 from torch import nn
 import torch
+from einops.layers.torch import Rearrange
+from einops import repeat, rearrange
+from utils.helpers import *
 from models.blocks import Transformer
 from functools import partial
 from utils.modulefreezer import freeze
@@ -68,3 +71,81 @@ class VTR(nn.Module):
         x = self.transformer(x)
         x = self.norm(x)[:, 0]
         return self.fc(x)
+
+
+class TiT(nn.Module):
+    def __init__(self, *, image_size, patch_dim, pixel_dim, patch_size, pixel_size, depth, num_classes, inner_heads=4,
+                 outer_heads=6, dim_head_inner=24, dim_head_outer=64, dropout=0.1, attn_dropout=0.1):
+        super().__init__()
+        assert divisible_by(image_size, patch_size), 'image size must be divisible by patch size'
+        assert divisible_by(patch_size, pixel_size), 'patch size must be divisible by pixel size for now'
+
+        num_patch_tokens = (image_size // patch_size) ** 2
+        pixel_width = patch_size // pixel_size
+        num_pixels = pixel_width ** 2
+        self.image_size = image_size
+        self.patch_size = patch_size
+        self.patch_tokens = nn.Parameter(torch.randn(num_patch_tokens + 1, patch_dim))
+        self.to_pixel_tokens = nn.Sequential(
+            Rearrange('b c (h p1) (w p2) -> (b h w) c p1 p2', p1=patch_size, p2=patch_size),
+            nn.Unfold(pixel_size, stride=pixel_size),
+            Rearrange('... c n -> ... n c'),
+            nn.Linear(3 * pixel_size ** 2, pixel_dim)
+        )
+
+        self.patch_pos_emb = nn.Parameter(torch.randn(num_patch_tokens + 1, patch_dim))
+        self.pixel_pos_emb = nn.Parameter(torch.randn(num_pixels, pixel_dim))
+
+        layers = nn.ModuleList([])
+        for _ in range(depth):
+            pixel_to_patch = nn.Sequential(
+                nn.LayerNorm(pixel_dim),
+                Rearrange('... n d -> ... (n d)'),
+                nn.Linear(pixel_dim * num_pixels, patch_dim),
+            )
+
+            layers.append(nn.ModuleList([
+                LayerNormalize(pixel_dim, Attention(dim=pixel_dim, heads=inner_heads, dim_head=dim_head_inner, dropout=attn_dropout)),
+                LayerNormalize(pixel_dim, FeedForward(dim=pixel_dim, dropout=dropout)),
+                pixel_to_patch,
+                LayerNormalize(patch_dim, Attention(dim=patch_dim, heads=outer_heads, dim_head=dim_head_outer, dropout=attn_dropout)),
+                LayerNormalize(patch_dim, FeedForward(dim=patch_dim, dropout=dropout)),
+            ]))
+
+        self.layers = layers
+
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(patch_dim),
+            nn.Linear(patch_dim, num_classes)
+        )
+
+    def forward(self, x):
+        b, _, h, w, patch_size, image_size = *x.shape, self.patch_size, self.image_size
+        assert divisible_by(h, patch_size) and divisible_by(w,
+                                                            patch_size), f'height {h} and width {w} of input must be divisible by the patch size'
+
+        num_patches_h = h // patch_size
+        num_patches_w = w // patch_size
+        n = num_patches_w * num_patches_h
+
+        pixels = self.to_pixel_tokens(x)
+        patches = repeat(self.patch_tokens[:(n + 1)], 'n d -> b n d', b=b)
+
+        patches += rearrange(self.patch_pos_emb[:(n + 1)], 'n d -> () n d')
+        pixels += rearrange(self.pixel_pos_emb, 'n d -> () n d')
+
+        for pixel_attn, pixel_ff, pixel_to_patch_residual, patch_attn, patch_ff in self.layers:
+            pixels = pixel_attn(pixels) + pixels
+            pixels = pixel_ff(pixels) + pixels
+
+            patches_residual = pixel_to_patch_residual(pixels)
+
+            patches_residual = rearrange(patches_residual, '(b h w) d -> b (h w) d', h=num_patches_h, w=num_patches_w)
+            patches_residual = F.pad(patches_residual, (0, 0, 1, 0), value=0)  # cls token gets residual of 0
+            patches = patches + patches_residual
+
+            patches = patch_attn(patches) + patches
+            patches = patch_ff(patches) + patches
+
+        cls_token = patches[:, 0]
+        return self.mlp_head(cls_token)
