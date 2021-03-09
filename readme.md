@@ -59,7 +59,7 @@ ARXIV
 </div>
  
 ## Description   
-This is an implementation of a Transformer iN Transformer(TNT)
+This is an implementation of a Transformer iN Transformer(TNT), but I like the TiT name more :)
 Currently no pre-trained models are supported.. Its quite VRAM heavy because no transfer learning.
 
 ![arch](images/tnt.png)
