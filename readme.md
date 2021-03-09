@@ -62,7 +62,7 @@ ARXIV
 This is an implementation of a Transformer iN Transformer(TNT)
 Currently no pre-trained models are supported.. Its quite VRAM heavy because no transfer learning.
 
-![arch](images/archhhh2-770x388.png)
+![arch](images/tnt.png)
 
 ## How to run   
 
