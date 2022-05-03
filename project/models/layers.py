@@ -16,9 +16,6 @@ class Attention(nn.Module):
         B, N, C = x.shape
         H = self.num_heads
         q, k, v = self.qkv(x).reshape(B, N, 3, H, C // H).permute(2, 0, 3, 1, 4)
-        # q = qkv[0]
-        # k = qkv[1]
-        # v = qkv[2]
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
